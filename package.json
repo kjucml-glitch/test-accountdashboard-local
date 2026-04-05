@@ -3,6 +3,6 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "venv\\Scripts\\python.exe -m streamlit run app.py"
+    "dev": "venv\\Scripts\\python.exe -m streamlit run streamlit_app.py"
   }
 }
