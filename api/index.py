@@ -7,10 +7,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 import plotly  # type: ignore[import-untyped]
 import plotly.express as px  # type: ignore[import-untyped]
-from flask import Flask
+from flask import Flask  # type: ignore[import-untyped]
 
 app = Flask(__name__)
 
@@ -80,8 +80,8 @@ def _chart_to_html(fig: Any) -> str:
 def build_charts(df: pd.DataFrame) -> dict[str, str]:
     charts: dict[str, str] = {}
 
-    income = float(df.loc[df["type"] == "수입", "amount"].sum())
-    expense = float(df.loc[df["type"] == "지출", "abs_amount"].sum())
+    income = float(df.loc[df["type"] == "수입", "amount"].sum())  # type: ignore[union-attr]
+    expense = float(df.loc[df["type"] == "지출", "abs_amount"].sum())  # type: ignore[union-attr]
     net = income - expense
     charts["kpi"] = f"""
     <div style="display:flex;gap:24px;margin-bottom:24px;">
@@ -108,7 +108,7 @@ def build_charts(df: pd.DataFrame) -> dict[str, str]:
     exp_df = df[df["type"] == "지출"]
     if not exp_df.empty:
         grouped = exp_df.groupby("category", as_index=False).agg(abs_amount=("abs_amount", "sum"))
-        grouped = grouped.sort_values(by="abs_amount", ascending=False)
+        grouped = grouped.sort_values(by="abs_amount", ascending=False)  # type: ignore[call-overload]
         fig = px.pie(grouped, names="category", values="abs_amount", title="카테고리별 지출 비중", hole=0.35)
         charts["category"] = _chart_to_html(fig)
 
