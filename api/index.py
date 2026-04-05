@@ -23,6 +23,9 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
+DEFAULT_FOLDER_ID = "1PB01d9EKdYmGlYaD3ivRN3-6FlHX_YC2"
+DEFAULT_SPREADSHEET_ID = "1nBAcZCmhB6moTdy4ofIaqZgQ2WMpwzxkEUc4-787OLc"
+
 # ---------------------------------------------------------------------------
 # Auth helpers
 # ---------------------------------------------------------------------------
@@ -228,22 +231,22 @@ h2{{color:#c62828;margin-bottom:12px;}}</style></head>
 
 @app.route("/")
 def index() -> str:
-    folder_id = os.getenv("FOLDER_ID", "").strip()
+    folder_id = os.getenv("FOLDER_ID", DEFAULT_FOLDER_ID).strip()
     spreadsheet_id = request.args.get("sheet_id", "").strip()
     worksheet_name = request.args.get("ws", "").strip()
 
     try:
-        # If no sheet specified, try to pick the first one from the folder
+        # If no sheet specified, try folder first, then default spreadsheet
         if not spreadsheet_id and folder_id:
-            sheets = list_sheets_in_folder(folder_id)
-            if sheets:
-                spreadsheet_id = next(iter(sheets.values()))
+            try:
+                sheets = list_sheets_in_folder(folder_id)
+                if sheets:
+                    spreadsheet_id = next(iter(sheets.values()))
+            except Exception:
+                pass
 
         if not spreadsheet_id:
-            return render_error(
-                "표시할 스프레드시트가 없습니다. "
-                "FOLDER_ID 환경변수를 설정하거나 ?sheet_id=...&ws=... 쿼리를 사용하세요."
-            )
+            spreadsheet_id = DEFAULT_SPREADSHEET_ID
 
         if not worksheet_name:
             ws_list = list_worksheets(spreadsheet_id)
@@ -269,7 +272,7 @@ def index() -> str:
 @app.route("/api/sheets")
 def api_sheets() -> dict[str, Any]:
     """List sheets in the configured folder (JSON API)."""
-    folder_id = os.getenv("FOLDER_ID", "")
+    folder_id = os.getenv("FOLDER_ID", DEFAULT_FOLDER_ID)
     if not folder_id:
         return {"error": "FOLDER_ID not configured"}, 400  # type: ignore[return-value]
     return list_sheets_in_folder(folder_id)
