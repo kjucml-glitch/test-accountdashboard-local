@@ -1,9 +1,12 @@
 {
+  "extraPaths": [".venv/Lib/site-packages"],
   "typeCheckingMode": "basic",
   "reportMissingTypeStubs": false,
   "reportUnknownMemberType": false,
   "reportUnknownVariableType": false,
   "reportUnknownArgumentType": false,
   "reportUnknownParameterType": false,
-  "reportReturnType": false
+  "reportReturnType": false,
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false
 }

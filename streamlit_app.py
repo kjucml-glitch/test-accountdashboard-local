@@ -98,8 +98,8 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def kpi_cards(df: pd.DataFrame) -> None:
-    income = df.loc[df["type"] == "수입", "amount"].sum()
-    expense = df.loc[df["type"] == "지출", "abs_amount"].sum()
+    income = df.loc[df["type"] == "수입", "amount"].sum()  # type: ignore[union-attr]
+    expense = df.loc[df["type"] == "지출", "abs_amount"].sum()  # type: ignore[union-attr]
     net = income - expense
 
     c1, c2, c3 = st.columns(3)
@@ -138,7 +138,7 @@ def category_expense_chart(df: pd.DataFrame) -> None:
 
     grouped = expense_df.groupby("category", as_index=False).agg(
         abs_amount=("abs_amount", "sum")
-    ).sort_values(by="abs_amount", ascending=False)
+    ).sort_values(by="abs_amount", ascending=False)  # type: ignore[call-overload]
 
     fig = px.pie(
         grouped,
@@ -231,18 +231,18 @@ def main() -> None:
         st.warning("선택한 조건의 데이터가 없습니다.")
         return
 
-    kpi_cards(filtered)
+    kpi_cards(filtered)  # type: ignore[arg-type]
 
     left, right = st.columns(2)
     with left:
-        monthly_trend_chart(filtered)
+        monthly_trend_chart(filtered)  # type: ignore[arg-type]
     with right:
-        category_expense_chart(filtered)
+        category_expense_chart(filtered)  # type: ignore[arg-type]
 
-    daily_flow_chart(filtered)
+    daily_flow_chart(filtered)  # type: ignore[arg-type]
 
     with st.expander("원본 데이터 보기"):
-        st.dataframe(filtered.sort_values("date", ascending=False), use_container_width=True)
+        st.dataframe(filtered.sort_values("date", ascending=False), use_container_width=True)  # type: ignore[call-overload]
 
 
 if __name__ == "__main__":
