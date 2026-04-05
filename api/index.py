@@ -36,6 +36,16 @@ def load_sheet(filepath: Path, sheet_name: str) -> pd.DataFrame:
     for old, new in RENAME_MAP.items():
         if old in df.columns and new not in df.columns:
             df = df.rename(columns={old: new})
+
+    # 수입/지출이 별도 컬럼인 경우 amount와 type을 합성
+    if "amount" not in df.columns and "수입" in df.columns and "지출" in df.columns:
+        df["수입"] = pd.to_numeric(df["수입"], errors="coerce").fillna(0)
+        df["지출"] = pd.to_numeric(df["지출"], errors="coerce").fillna(0)
+        df["amount"] = df["수입"] - df["지출"]
+        df["type"] = df.apply(
+            lambda r: "수입" if r["수입"] > 0 else "지출", axis=1
+        )
+
     return df
 
 
