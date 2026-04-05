@@ -1,0 +1,8 @@
+{
+  "name": "test-accountdashboard",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "venv\\Scripts\\python.exe -m streamlit run app.py"
+  }
+}

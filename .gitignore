@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Environment / secrets
+.env
+service-account.json
+
+# IDE
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Test
+test_import.py
+
+# Node
+node_modules/
