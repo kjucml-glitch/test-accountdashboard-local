@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import tempfile
 from typing import Any
 
 import gspread
@@ -15,28 +17,41 @@ load_dotenv()
 
 st.set_page_config(page_title="가계부 대시보드", page_icon="📊", layout="wide")
 
+SCOPES = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive.readonly",
+]
+
+
+def _get_credentials() -> Credentials:
+    """Resolve credentials from Streamlit Cloud secrets or local JSON file."""
+    # 1) Streamlit Cloud secrets
+    if "gcp_service_account" in st.secrets:
+        info = dict(st.secrets["gcp_service_account"])
+        return Credentials.from_service_account_info(info, scopes=SCOPES)
+
+    # 2) Local JSON file via env var
+    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+    if cred_path and os.path.exists(cred_path):
+        return Credentials.from_service_account_file(cred_path, scopes=SCOPES)
+
+    raise ValueError(
+        "인증 정보를 찾을 수 없습니다. "
+        "Streamlit Cloud secrets 또는 GOOGLE_APPLICATION_CREDENTIALS 환경변수를 설정하세요."
+    )
+
 
 @st.cache_resource
 def get_gspread_client() -> gspread.Client:
     """Create and cache an authenticated gspread client."""
-    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-    if not cred_path:
-        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS 환경변수가 필요합니다.")
-
-    if not os.path.exists(cred_path):
-        raise FileNotFoundError(
-            f"서비스 계정 키 파일을 찾을 수 없습니다: {cred_path}"
-        )
-
-    return gspread.service_account(filename=cred_path)
+    creds = _get_credentials()
+    return gspread.authorize(creds)
 
 
 @st.cache_resource
 def get_drive_service() -> Any:
-    """Create and cache a Google Drive API service using service account credentials."""
-    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-    scopes = ["https://www.googleapis.com/auth/drive.readonly"]
-    creds = Credentials.from_service_account_file(cred_path, scopes=scopes)
+    """Create and cache a Google Drive API service."""
+    creds = _get_credentials()
     return build(
         "drive",
         "v3",
@@ -232,6 +247,8 @@ def main() -> None:
     st.caption("Python + Streamlit + gspread + pandas + plotly")
 
     default_folder_id = os.getenv("FOLDER_ID", "")
+    if not default_folder_id and "app" in st.secrets:
+        default_folder_id = st.secrets["app"].get("FOLDER_ID", "")
 
     with st.sidebar:
         st.header("📂 Google Drive 설정")

@@ -7,6 +7,7 @@ venv/
 # Environment / secrets
 .env
 service-account.json
+.streamlit/secrets.toml
 
 # IDE
 .vscode/
