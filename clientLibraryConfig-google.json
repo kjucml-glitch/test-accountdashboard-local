@@ -1,0 +1,14 @@
+{
+  "universe_domain": "googleapis.com",
+  "type": "external_account",
+  "audience": "//iam.googleapis.com/projects/674732639791/locations/global/workloadIdentityPools/test-accountdashboard2/providers/google",
+  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+  "token_url": "https://sts.googleapis.com/v1/token",
+  "credential_source": {
+    "file": "principal://iam.googleapis.com/projects/674732639791/locations/global/workloadIdentityPools/test-accountdashboard2/subject/SUBJECT_ATTRIBUTE_VALUE",
+    "format": {
+      "type": "json",
+      "subject_token_field_name": "access_token"
+    }
+  }
+}

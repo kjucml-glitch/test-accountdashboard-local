@@ -1,116 +1,31 @@
 from __future__ import annotations
 
-import json
 import os
-import tempfile
-from typing import Any
+from pathlib import Path
 
-import gspread
 import pandas as pd
 import plotly.express as px  # type: ignore[import-untyped]
 import streamlit as st
-from dotenv import load_dotenv
-from google.oauth2.service_account import Credentials  # type: ignore[import-untyped]
-from googleapiclient.discovery import build  # type: ignore[import-untyped]
-
-load_dotenv()
 
 st.set_page_config(page_title="가계부 대시보드", page_icon="📊", layout="wide")
 
-SCOPES = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive.readonly",
-]
+EXCEL_FILE = Path(__file__).parent / "houseaccountfile.xlsx"
 
 
-def _get_credentials() -> Credentials:
-    """Resolve credentials from Streamlit Cloud secrets or local JSON file."""
-    # 1) Streamlit Cloud secrets
-    if "gcp_service_account" in st.secrets:
-        info = dict(st.secrets["gcp_service_account"])
-        return Credentials.from_service_account_info(info, scopes=SCOPES)
-
-    # 2) Local JSON file via env var
-    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-    if cred_path and os.path.exists(cred_path):
-        return Credentials.from_service_account_file(cred_path, scopes=SCOPES)
-
-    raise ValueError(
-        "인증 정보를 찾을 수 없습니다. "
-        "Streamlit Cloud secrets 또는 GOOGLE_APPLICATION_CREDENTIALS 환경변수를 설정하세요."
-    )
+@st.cache_data
+def get_sheet_names(filepath: str) -> list[str]:
+    """엑셀 파일의 시트 이름 목록을 반환합니다."""
+    xls = pd.ExcelFile(filepath, engine="openpyxl")
+    return xls.sheet_names
 
 
-@st.cache_resource
-def get_gspread_client() -> gspread.Client:
-    """Create and cache an authenticated gspread client."""
-    creds = _get_credentials()
-    return gspread.authorize(creds)
+@st.cache_data
+def load_sheet_as_dataframe(filepath: str, sheet_name: str) -> pd.DataFrame:
+    """엑셀 시트를 DataFrame으로 로드합니다."""
+    df = pd.read_excel(filepath, sheet_name=sheet_name, engine="openpyxl")
 
-
-@st.cache_resource
-def get_drive_service() -> Any:
-    """Create and cache a Google Drive API service."""
-    creds = _get_credentials()
-    return build(
-        "drive",
-        "v3",
-        credentials=creds,
-        cache_discovery=False,
-    )
-
-
-@st.cache_data(ttl=300)
-def get_sheets_from_folder(folder_id: str) -> dict[str, str]:
-    """
-    List all Google Sheets in a folder.
-    Returns dict: {file_name: file_id}
-    """
-    service = get_drive_service()
-    query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
-
-    results = service.files().list(
-        q=query,
-        spaces="drive",
-        fields="files(id, name)",
-        pageSize=100,
-    ).execute()
-
-    files = results.get("files", [])
-    return {f["name"]: f["id"] for f in files}
-
-
-@st.cache_data(ttl=300)
-def get_worksheets(spreadsheet_id: str) -> list[str]:
-    """Get list of worksheet names in a spreadsheet."""
-    client = get_gspread_client()
-    try:
-        spreadsheet = client.open_by_key(spreadsheet_id)
-        return [ws.title for ws in spreadsheet.worksheets()]
-    except Exception as e:
-        st.error(f"워크시트 목록 조회 실패: {e}")
-        return []
-
-
-@st.cache_data(ttl=120)
-def load_sheet_as_dataframe(spreadsheet_url: str, spreadsheet_id: str, worksheet_name: str) -> pd.DataFrame:
-    """Load worksheet records into DataFrame with basic normalization."""
-    client = get_gspread_client()
-
-    if spreadsheet_url:
-        spreadsheet = client.open_by_url(spreadsheet_url)
-    elif spreadsheet_id:
-        spreadsheet = client.open_by_key(spreadsheet_id)
-    else:
-        raise ValueError("SPREADSHEET_URL 또는 SPREADSHEET_ID 중 하나가 필요합니다.")
-
-    worksheet = spreadsheet.worksheet(worksheet_name)
-    values = worksheet.get_all_records()
-
-    if not values:
+    if df.empty:
         return pd.DataFrame()
-
-    df = pd.DataFrame(values)
 
     # Common column aliases for Korean household book datasets.
     rename_map = {
@@ -244,95 +159,42 @@ def daily_flow_chart(df: pd.DataFrame) -> None:
 
 def main() -> None:
     st.title("가계부 대시보드")
-    st.caption("Python + Streamlit + gspread + pandas + plotly")
+    st.caption("Python + Streamlit + pandas + plotly (로컬 엑셀)")
 
-    default_folder_id = os.getenv("FOLDER_ID", "")
-    if not default_folder_id and "app" in st.secrets:
-        default_folder_id = st.secrets["app"].get("FOLDER_ID", "")
+    filepath = str(EXCEL_FILE)
+
+    if not EXCEL_FILE.exists():
+        st.error(f"엑셀 파일을 찾을 수 없습니다: {filepath}")
+        return
 
     with st.sidebar:
-        st.header("📂 Google Drive 설정")
-        
-        folder_id = st.text_input(
-            "폴더 ID (또는 공유 링크에서 추출)",
-            value=default_folder_id,
-            help="예: 1PB01d9EKdYmGlYaD3ivRN3-6FlHX_YC2"
+        st.header("📂 엑셀 파일 설정")
+        st.write(f"파일: `{EXCEL_FILE.name}`")
+
+        try:
+            sheet_names = get_sheet_names(filepath)
+        except Exception as exc:
+            st.error(f"엑셀 파일 읽기 실패: {exc}")
+            return
+
+        if not sheet_names:
+            st.warning("시트가 없습니다.")
+            return
+
+        worksheet_name = st.selectbox(
+            "워크시트 선택",
+            options=sheet_names,
+            help="엑셀 파일 내 시트 목록",
         )
-
-        spreadsheet_name = None
-        spreadsheet_id = None
-        worksheet_name = None
-
-        if folder_id.strip():
-            try:
-                sheets_dict = get_sheets_from_folder(folder_id)
-                if sheets_dict:
-                    spreadsheet_name = st.selectbox(
-                        "스프레드시트 선택",
-                        options=list(sheets_dict.keys()),
-                        help="폴더 내 Google Sheets 파일 목록"
-                    )
-
-                    if spreadsheet_name:
-                        spreadsheet_id = sheets_dict[spreadsheet_name]
-                        
-                        worksheets = get_worksheets(spreadsheet_id)
-                        if worksheets:
-                            worksheet_name = st.selectbox(
-                                "워크시트 선택",
-                                options=worksheets,
-                                help="스프레드시트 내 시트 목록"
-                            )
-                else:
-                    st.warning("폴더에 Google Sheets 파일이 없습니다.")
-            except Exception as exc:
-                st.error(f"폴더 탐색 실패: {exc}")
-
-        st.divider()
-        st.header("⚙️ 또는 직접 입력")
-        
-        direct_url = st.text_input(
-            "Spreadsheet URL",
-            help="URL로 직접 지정할 수 있습니다."
-        )
-        direct_id = st.text_input(
-            "Spreadsheet ID",
-            help="ID로 직접 지정할 수 있습니다."
-        )
-        if worksheet_name is None and direct_id:
-            direct_ws = st.text_input(
-                "Worksheet 이름",
-                value="Sheet1"
-            )
-        else:
-            direct_ws = worksheet_name or "Sheet1"
 
         run_button = st.button("불러오기", type="primary", use_container_width=True)
 
-        st.markdown("### 권한 체크")
-        st.write("서비스 계정 이메일을 시트 공유 대상(뷰어 이상)으로 추가하세요.")
-
     if not run_button:
-        st.info("왼쪽 사이드바에서 폴더를 선택하거나 스프레드시트 정보를 입력하고 불러오기를 눌러주세요.")
-        return
-
-    # Determine which source to use
-    sheet_url: str = ""
-    sheet_id: str = ""
-    ws_name: str = direct_ws
-
-    if spreadsheet_id and worksheet_name:
-        sheet_id = str(spreadsheet_id)
-        ws_name = worksheet_name
-    elif direct_url or direct_id:
-        sheet_url = direct_url or ""
-        sheet_id = direct_id or ""
-    else:
-        st.error("스프레드시트 정보가 필요합니다.")
+        st.info("왼쪽 사이드바에서 워크시트를 선택하고 불러오기를 눌러주세요.")
         return
 
     try:
-        raw_df = load_sheet_as_dataframe(sheet_url, sheet_id, ws_name)
+        raw_df = load_sheet_as_dataframe(filepath, worksheet_name)
         if raw_df.empty:
             st.warning("시트에 데이터가 없습니다.")
             return
